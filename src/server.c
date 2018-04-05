@@ -1,18 +1,18 @@
 /**
  * webserver.c -- A webserver written in C
- * 
+ *
  * Test with curl (if you don't have it, install it):
- * 
+ *
  *    curl -D - http://localhost:3490/
  *    curl -D - http://localhost:3490/d20
  *    curl -D - http://localhost:3490/date
- * 
+ *
  * You can also test the above URLs in your browser! They should work!
- * 
+ *
  * Posting Data:
- * 
+ *
  *    curl -D - -X POST -H 'Content-Type: text/plain' -d 'Hello, sample data!' http://localhost:3490/save
- * 
+ *
  * (Posting data is harder to test from a browser.)
  */
 
@@ -28,7 +28,7 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
-#include <time.h>
+#include <time.h> // SEE http://devdocs.io/c/chrono/time
 #include <sys/file.h>
 #include <fcntl.h>
 
@@ -63,7 +63,7 @@ void sigchld_handler(int s) {
  *
  * Whenever a child process dies, the parent process gets signal
  * SIGCHLD; the handler sigchld_handler() takes care of wait()ing.
- * 
+ *
  * This is only necessary if we've implemented a multiprocessed version with
  * fork().
  */
@@ -104,7 +104,7 @@ int get_listener_socket(char *port)
   int sockfd;
   struct addrinfo hints, *servinfo, *p;
   int yes=1;
-  int rv;
+  int rv; // what is rv?
 
   // This block of code looks at the local network interfaces and
   // tries to find some that match our requirements (namely either
@@ -182,20 +182,34 @@ int get_listener_socket(char *port)
  * header:       "HTTP/1.1 404 NOT FOUND" or "HTTP/1.1 200 OK", etc.
  * content_type: "text/plain", etc.
  * body:         the data to send.
- * 
+ *
  * Return the value from the send() function.
  */
 int send_response(int fd, char *header, char *content_type, char *body)
 {
-  const int max_response_size = 65536;
-  char response[max_response_size];
-  int response_length;
+  // const int max_response_size = 65536;
+  char response[98765];
+  int content_len = strlen(body);
+  int response_length = sprintf(response,
+    "%s\n"
+    "Date: %s\n"
+    "Connection: closed\n"
+    "Content-Length: %d\n"
+    "Content-Type: %s\n"
+    "\n"
+    "%s",
+
+    header,
+    "Current Date Here.",
+    content_len,
+    content_type,
+    body
+  );
 
   // !!!!  IMPLEMENT ME
 
   // Send it all!
   int rv = send(fd, response, response_length, 0);
-
   if (rv < 0) {
     perror("send");
   }
@@ -223,6 +237,7 @@ void get_root(int fd)
 {
   // !!!! IMPLEMENT ME
   //send_response(...
+  send_response(fd, "HTTP/1.1 200 OK", "text/html", "<h1>Hola Mundo!</h1>");
 }
 
 /**
@@ -231,6 +246,12 @@ void get_root(int fd)
 void get_d20(int fd)
 {
   // !!!! IMPLEMENT ME
+  srand(time(NULL));
+  int r = rand() % 21;
+  char n[10];
+  sprintf(n, "%d", r);
+
+  send_response(fd, "HTTP/1.1 200 OK", "text/plain", n);
 }
 
 /**
@@ -239,6 +260,7 @@ void get_d20(int fd)
 void get_date(int fd)
 {
   // !!!! IMPLEMENT ME
+
 }
 
 /**
@@ -253,7 +275,7 @@ void post_save(int fd, char *body)
 
 /**
  * Search for the end of the HTTP header
- * 
+ *
  * "Newlines" in HTTP can be \r\n (carriage return followed by newline) or \n
  * (newline) or \r (carriage return).
  */
@@ -288,12 +310,25 @@ void handle_http_request(int fd)
   // !!!! IMPLEMENT ME
   // Get the request type and path from the first line
   // Hint: sscanf()!
+  sscanf(request, "%s %s %s", request_type, request_path, request_protocol);
 
   // !!!! IMPLEMENT ME (stretch goal)
   // find_end_of_header()
 
   // !!!! IMPLEMENT ME
   // call the appropriate handler functions, above, with the incoming data
+
+  if (strcmp(request_type, "GET") == 0) {
+    if (strcmp(request_path, "/") == 0) {
+      get_root(fd);
+    }
+    if (strcmp(request_path, "/d20") == 0) {
+      get_d20(fd);
+    }
+    if (strcmp(request_path, "/date") == 0) {
+      get_date(fd);
+    }
+  }
 }
 
 /**
@@ -321,7 +356,7 @@ int main(void)
   // This is the main loop that accepts incoming connections and
   // fork()s a handler process to take care of it. The main parent
   // process then goes back to waiting for new connections.
-  
+
   while(1) {
     socklen_t sin_size = sizeof their_addr;
 
@@ -338,7 +373,7 @@ int main(void)
       get_in_addr((struct sockaddr *)&their_addr),
       s, sizeof s);
     printf("server: got connection from %s\n", s);
-    
+
     // newfd is a new socket descriptor for the new connection.
     // listenfd is still listening for new connections.
 
